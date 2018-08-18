@@ -101,13 +101,13 @@ int connectWithAgent(const int &port, int &clientSock){
 
   listen(serverSock,4);
 
-  cout << "Waiting for client to connect.\n";
+  // cout << "Waiting for client to connect.\n";
 
   sockaddr_in clientAddr;
   socklen_t sin_size=sizeof(struct sockaddr_in);
   clientSock=accept(serverSock,(struct sockaddr*)&clientAddr, &sin_size);
 
-  cout << "Client connected.\n";
+  // cout << "Client connected.\n";
 
   return 0;
 }
@@ -121,7 +121,7 @@ int getArmFromAgent(int &clientSock){
 
   //  cout << "Waiting for client message...\n";
   if(recv(clientSock, recvBuf, 256, 0) > 0){
-    cout << "Received message: " << recvBuf << ".\n";
+    // cout << "Received message: " << recvBuf << ".\n";
     sscanf(recvBuf, "%d", &arm);
   }
   else{
@@ -132,7 +132,8 @@ int getArmFromAgent(int &clientSock){
 }
 
 void giveRewardToAgent(int &clientSock, const double &reward, const unsigned long int &pulls){
-  cout << "Sending reward " << reward << "; pulls = " << pulls << ".\n";
+  // cout << "Sending reward " << reward << "; pulls = " << pulls << ".\n";
+  cout << reward << "\n";
   char sendBuf[256];
   char sept=',';
   sprintf(sendBuf, "%f%c%lu",reward,sept,pulls);
@@ -244,8 +245,9 @@ int main(int argc, char *argv[]){
     giveRewardToAgent(clientSock, reward, (i + 1));
   }
   double regret = bandit->getRegret();
-  cout << "Regret = " << regret << "\n";
-  cout << "Terminating.\n";
+  // cout << "Regret = " << regret << "\n";
+  cout << regret << "\n";
+  // cout << "Terminating.\n";
   
   delete bandit;
 

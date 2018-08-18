@@ -136,7 +136,7 @@ double Bandit::getCumulativeReward(){
 }
 
 double Bandit::getRegret(){
-  cout << "maxMean" << maxMean << " numTotalPulls" << numTotalPulls << " cumulativeReward" << cumulativeReward << endl;
+  // cout << "maxMean" << maxMean << " numTotalPulls" << numTotalPulls << " cumulativeReward" << cumulativeReward << endl;
   return ((numTotalPulls * maxMean) - cumulativeReward);
 }
 

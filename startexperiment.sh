@@ -16,18 +16,20 @@ hostname="localhost"
 
 
 algorithm="Thompson-Sampling"
-horizon=$1
+horizon=10000
 epsilon=0.25
-numArms=5
-randomSeed=$2
+numArms=25
+randomSeed=$1
 
-banditFile="$PWD/data/instance-histogram-5.txt"
+banditFile="$PWD/data/betaDist_25.txt"
 
 
 SERVERDIR=./server
 CLIENTDIR=./client
 
-OUTPUTFILE=$PWD/serverlog.txt
+OUTPUTFILE=$PWD/Logs/logs$randomSeed.txt
+# OUTPUTFILE=$PWD/sachin.txt
+# OUTPUTFILE=$2
 
 pushd $SERVERDIR
 cmd="./startserver.sh $numArms $horizon $port $banditFile $randomSeed $OUTPUTFILE &"
@@ -40,6 +42,6 @@ sleep 1
 pushd $CLIENTDIR
 cmd="./startclient.sh $numArms $horizon $hostname $port $randomSeed $algorithm $epsilon&"
 #echo $cmd
-$cmd #> /dev/null 
+$cmd > /dev/null 
 popd
 
