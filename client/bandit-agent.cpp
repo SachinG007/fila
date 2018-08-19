@@ -12,6 +12,7 @@
 #include <random>
 #include <string>
 #include <chrono>
+#include <sys/time.h>
 #include "gsl/gsl_rng.h"
 #include "gsl/gsl_randist.h"
 #include "function.h"
@@ -26,10 +27,12 @@ float cum_rewards[25] = {0};
 int total_pulls[25] = {0};
 float bandit_probs[25] = {0};
 float ucb[50] = {0};
-int tsuccess[50] ={0};
-int tfails[50] = {0};
+float klucb[50] = {0};
+int cum_fail[50] = {0};
 int ArmToPull = 0;
 float beta_gen[50] = {0};
+gsl_rng * r;
+
 
 // C function to find maximum in arr[] of size n
 int largest(float arr[], int n)
@@ -49,6 +52,26 @@ int largest(float arr[], int n)
 
     return max_index;
 }
+
+
+double keithRandom() {
+    // Random number function based on the GNU Scientific Library
+    // Returns a random float between 0 and 1, exclusive; e.g., (0,1)
+    const gsl_rng_type * T;
+    gsl_rng * r;
+    gsl_rng_env_setup();
+    struct timeval tv; // Seed generation based on time
+    gettimeofday(&tv,0);
+    unsigned long mySeed = tv.tv_sec + tv.tv_usec;
+    T = gsl_rng_default; // Generator setup
+    r = gsl_rng_alloc (T);
+    gsl_rng_set(r, mySeed);
+    double u = gsl_rng_uniform(r); // Generate it!
+    gsl_rng_free (r);
+    return (double)u;
+}
+
+
 
 int random(int x, int y, double p)
 {       
@@ -83,17 +106,17 @@ int epsilon_greedy(int pulls, float reward, int numArr, double epsilon)
     }
 
 
-    int exploit = random(0,1,epsilon);
+    double numb_generated = keithRandom();
+    cout<<numb_generated<<endl;
+    int exploit =0;
 
-    // if(pulls<20){
-      cout<<bandit_probs[0]<<endl;
-      cout<<bandit_probs[1]<<endl;
-      cout<<bandit_probs[2]<<endl;
-      cout<<bandit_probs[3]<<endl;
-      cout<<bandit_probs[4]<<endl;
-      cout<<bandit_probs[5]<<endl;
-      cout<<bandit_probs[6]<<endl;
-    // }
+    if(numb_generated < epsilon){
+      exploit = 0;
+    }  
+    else{
+      exploit =1;
+    }  
+    // int exploit = random(0,1,epsilon);
 
 
     if(exploit==0){
@@ -164,39 +187,134 @@ int UCB(int pulls, float reward, int numArms){
     if(pulls==0){
         cout<<"cleaning"<<endl;
         for(int i=0;i<numArms;i++){
-          tsuccess[i]=0;
-          tfails[i]=0;
+          cum_rewards[i]=0;
+          cum_fail[i]=0;
         }
         ArmToPull = 0;
     }
 
     else if(pulls!=0){
         
-        if(reward<0.5){
-          tfails[ArmToPull] = tfails[ArmToPull] + 1;
-        }
-        else{
-          tsuccess[ArmToPull] = tsuccess[ArmToPull] + 1;
-        }
-    }
+        cum_rewards[ArmToPull] = cum_rewards[ArmToPull] + reward;
+        cum_fail[ArmToPull] = cum_fail[ArmToPull] + 1 - reward;
+
+      }
 
     for(int i=0;i<numArms;i++){
         
         // construct a trivial random generator engine from a time-based seed:
         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
         std::default_random_engine generator (seed);
-        std::gamma_distribution<double> distribution1 (tsuccess[i] + 1,1);
-        std::gamma_distribution<double> distribution2 (tfails[i] + 1,1);
+        std::gamma_distribution<double> distribution1 (cum_rewards[i] + 1,1);
+        std::gamma_distribution<double> distribution2 (cum_fail[i] + 1,1);
         float x = distribution1(generator);
         float y = distribution2(generator);
 
         beta_gen[i] = x/(x+y);
+        cout<<"betagen"<<endl;
+        cout << beta_gen[i]<<endl;
     }
 
     ArmToPull = largest(beta_gen,numArms);
     return ArmToPull;
 
   }
+
+  float KL_xy(float x,float y){
+
+    float ans = 0;
+    // cout << "x " << x<<endl;
+    if((x==0)){
+      ans = (1-x)*log((1.0001-x)/(1.0001-y));
+    }
+    else{
+    ans = x*log(x+.0001/y+.0001) + (1-x)*log((1.0001-x)/(1.0001-y));
+    }
+    
+    // cout<<"kl "<<ans<<endl;
+    return ans;
+
+  }
+
+  float find_klmax(float prob,float kl_const){
+
+    float ans = 0;
+    bool max_found = false;
+    // cout<<"vale of const "<<kl_const<<endl;
+    // cout <<"prob "<<prob<<endl<<endl;
+    // cout <<"kl_const "<<kl_const<<endl;
+    for(float i = prob;i<1;i=i+.02){
+
+      // cout<<"i :"<<i<<endl;
+
+      if(KL_xy(prob,i) < kl_const){}
+      
+      else{
+        ans = i;
+        max_found = true;
+        break;
+      }
+    }
+
+    if(!max_found){
+      ans = 1;
+    }
+    return ans;
+
+  }
+
+  int KL_UCB(int pulls,float reward, int numArms){
+
+    // cout<<"KL UCB"<<endl;
+    //to be done only the first time
+    if(pulls == 0){
+        cout<<"cleaning"<<endl;
+        for(int i=0;i<numArms;i++){
+            cum_rewards[i] = 0;
+            total_pulls[i] = 0;
+            bandit_probs[i] = 0;
+            klucb[i] = 0;
+        }
+
+        ArmToPull =0;
+        return ArmToPull;
+    }
+
+    if(pulls < numArms){
+
+        cum_rewards[ArmToPull] = reward;
+        total_pulls[ArmToPull] = total_pulls[ArmToPull]+ 1;
+        bandit_probs[ArmToPull] =  cum_rewards[ArmToPull]/total_pulls[ArmToPull];
+        ArmToPull = pulls;
+        return ArmToPull;
+    }
+
+
+
+
+
+    if(pulls >= numArms){
+        cum_rewards[ArmToPull] = cum_rewards[ArmToPull] + reward;
+        total_pulls[ArmToPull] = total_pulls[ArmToPull] + 1;
+        bandit_probs[ArmToPull] = cum_rewards[ArmToPull]/total_pulls[ArmToPull];
+        // cout << bandit_probs
+
+        for(int i=0;i<numArms;i++){
+
+            float kl_const = (log(pulls) + 3*log(log(pulls)))/total_pulls[i];
+
+            // cout
+            klucb[i] = find_klmax(bandit_probs[i],kl_const);
+            // cout<<klucb[i]<<endl;
+         }
+
+        ArmToPull = largest(klucb,numArms);
+        return ArmToPull;
+    }
+
+
+  }
+
 
 
 void options(){
@@ -302,7 +420,7 @@ int sampleArm(string algorithm, double epsilon, int pulls, float reward, int num
     return(UCB(pulls,reward,numArms));
   }
   else if(algorithm.compare("KL-UCB") == 0){
-    return(pulls % numArms);
+    return(KL_UCB(pulls,reward,numArms)); 
   }
   else if(algorithm.compare("Thompson-Sampling") == 0){
     return(Thompson(pulls,reward,numArms));
